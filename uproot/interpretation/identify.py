@@ -58,7 +58,7 @@ def _ftype_to_dtype(fType):
     elif fType == uproot.const.kDouble:
         return numpy.dtype(">f8")
     else:
-        raise NotNumerical()
+        raise NotNumerical("Unrecognized fType: {}".format(fType))
 
 
 def _leaf_to_dtype(leaf):

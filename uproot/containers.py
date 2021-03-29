@@ -32,6 +32,7 @@ import uproot
 
 
 _stl_container_size = struct.Struct(">I")
+_stl_vector_header = struct.Struct(">hII")
 _stl_object_type = numpy.dtype(object)
 
 
@@ -796,15 +797,6 @@ class AsVector(AsContainer):
         # (e.g. type(self._values) == type)
         _value_typename = _content_typename(self._values)
         if is_memberwise:
-            # let's hard-code in logic for std::pair<T1,T2> for now
-            if not _value_typename.startswith("pair"):
-                raise NotImplementedError(
-                    """memberwise serialization of {0}({1})
-    in file {2}""".format(
-                        type(self).__name__, _value_typename, selffile.file_path
-                    )
-                )
-
             if not issubclass(self._values, uproot.model.DispatchByVersion):
                 raise NotImplementedError(
                     """streamerless memberwise serialization of class {0}({1})
@@ -813,14 +805,44 @@ class AsVector(AsContainer):
                     )
                 )
 
-            # uninterpreted header
-            cursor.skip(6)
+            if not (
+                _value_typename.startswith("pair")
+                or getattr(self._values, "can_stream_memberwise", False)
+            ):
+                raise NotImplementedError(
+                    """memberwise serialization of class {0}({1})
+    in file {2}""".format(
+                        type(self).__name__, _value_typename, selffile.file_path
+                    )
+                )
 
-            length = cursor.field(chunk, _stl_container_size, context)
+            (
+                values_version,
+                maybe_length,
+                values_num_bytes,
+            ) = cursor.fields(chunk, _stl_vector_header, context)
 
-            # no known class version number (maybe in that header? unclear...)
-            model = self._values.new_class(file, "max")
+            if values_version > 0 and values_num_bytes & uproot.const.kByteCountMask:
+                values_num_bytes = (
+                    int(values_num_bytes & ~uproot.const.kByteCountMask) + 4
+                )
+                length = maybe_length
+                # FIXME no idea what the other 2 bytes is
+                assert 2 + values_num_bytes + _stl_vector_header.size == num_bytes
+                stuff = cursor.field(  # noqa: F841
+                    chunk, struct.Struct(">h"), context
+                )
+                # print("mystery bytes:", stuff)
+            elif values_version > 0 and values_num_bytes == 65536:
+                # seen in test_0087 files but they have inconsistent header presence in the members
+                length = maybe_length
+            elif values_version == 0:
+                # FIXME no idea what maybe_length field is in this case (std::pair example)
+                length, values_num_bytes = values_num_bytes, None
+            else:
+                raise NotImplementedError
 
+            model = self._values.new_class(file, values_version)
             values = numpy.empty(length, dtype=_stl_object_type)
 
             # only do anything if we have anything to read...

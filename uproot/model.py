@@ -1092,6 +1092,9 @@ class DispatchByVersion(object):
         returns a :doc:`uproot.model.UnknownClassVersion` (adding it to
         ``uproo4.unknown_classes`` if it's not already there).
         """
+        if version in cls.known_versions:
+            return cls.known_versions[version]
+
         classname, _ = classname_decode(cls.__name__)
         classname = classname_regularize(classname)
         streamer = file.streamer_named(classname, version)
