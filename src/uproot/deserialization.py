@@ -251,7 +251,7 @@ def read_object_any(chunk, cursor, context, file, selffile, parent, as_class=Non
                 bcnt = int(bcnt & ~uproot.const.kByteCountMask) + 4
 
             # jump past this object
-            cursor.move_to(cursor.origin + beg + bcnt + 4)
+            cursor.move_to(cursor.origin + beg + bcnt + 6)
             return None  # return null
 
         else:

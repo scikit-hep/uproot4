@@ -770,7 +770,9 @@ class Model(object):
         self.hook_before_read(chunk=chunk, cursor=cursor, context=context, file=file)
 
         if context.get("reading", True):
-            self.read_numbytes_version(chunk, cursor, context)
+
+            if context.get("numbytes_version", True):
+                self.read_numbytes_version(chunk, cursor, context)
 
             if (
                 issubclass(cls, VersionedModel)

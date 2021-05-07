@@ -790,7 +790,7 @@ class AsVector(AsContainer):
         _value_typename = _content_typename(self._values)
         if is_memberwise:
             # let's hard-code in logic for std::pair<T1,T2> for now
-            if not _value_typename.startswith("pair"):
+            if not _value_typename.startswith("pair") and False:
                 raise NotImplementedError(
                     """memberwise serialization of {0}({1})
     in file {2}""".format(
@@ -828,12 +828,66 @@ class AsVector(AsContainer):
                         parent,
                     )
 
+                _member_names = getattr(values[0], 'member_names', [])
+                _has_memberwise_header = getattr(values[0], 'has_memberwise_header', [False]*len(_member_names))
+
+                check_positions = {
+                    (None, None): 123, # start
+                    (0, 0): 129,
+                    (0, 1): 149,
+                    (0, 2): 170,
+                    (0, 3): 191,
+                    (0, 4): 211,
+                    (0, 5): 232,
+                    (1, 0): 259,
+                    (1, 1): 279,
+                    (1, 2): 299,
+                    (1, 3): 319,
+                    (1, 4): 339,
+                    (1, 5): 359,
+                    (2, 0): 385,
+                    (2, 1): 386,
+                    (2, 2): 387,
+                    (2, 3): 388,
+                    (2, 4): 389,
+                    (2, 5): 390,
+                    (3, 0): 397,
+                }
+
+                print(cursor)
                 # memberwise reading!
-                for member_index in uproot._util.range(len(values[0].member_names)):
+                for member_index, has_header in zip(uproot._util.range(len(_member_names)), _has_memberwise_header):
+                    _block_start_cursor = cursor.copy()
+                    (
+                        _block_num_bytes,
+                        _block_instance_version,
+                        _block_is_memberwise,
+                    ) = uproot.deserialization.numbytes_version(chunk, cursor, context)
+
+                    try:
+                        assert _block_instance_version in [0, 9]
+                    except:
+                        breakpoint()
+
                     for i in uproot._util.range(length):
+                        #print(member_index, i, has_header, cursor)
+                        print(f"({member_index}, {i}): {cursor.index},")
+                        #cursor.debug(chunk, limit_bytes=20)
                         values[i].read_member_n(
                             chunk, cursor, context, file, member_index
                         )
+
+                    uproot.deserialization.numbytes_check(
+                        chunk,
+                        _block_start_cursor,
+                        cursor,
+                        _block_num_bytes,
+                        self.typename,
+                        context,
+                        file.file_path,
+                    )
+
+
         else:
             length = cursor.field(chunk, _stl_container_size, context)
 
